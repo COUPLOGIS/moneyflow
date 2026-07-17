@@ -915,14 +915,19 @@ function gateClose(){ var g=document.getElementById("gateEl"); if(g)g.remove(); 
 function gateMode(m){ var n=document.getElementById("gm_new"), j=document.getElementById("gm_join"); if(n)n.style.display=(m==="new")?"block":"none"; if(j)j.style.display=(m==="join")?"block":"none"; var bs=document.querySelectorAll("#gateSeg button"); bs.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-m")===m); }); }
 async function doCreate(){ var url=gv("g_url"), key=gv("g_key"), code=gv("gn_code"), pass=gv("gn_pass"); if(!url||!key){ alert("Supabase URL과 anon key를 입력하세요."); return; } if(!code){ alert("가구 코드를 생성하세요."); return; } CFG={url:url,key:key,code:code,pass:pass}; cfgSave(); initSb(); if(!sb){ alert("Supabase 연결 실패. URL/key를 확인하세요."); return; } await cloudPush(); subscribeRT(); gateClose(); ensureDot(); syncDotSet("동기화됨","ok"); toast("가구 생성 완료"); }
 async function doJoin(){ var url=gv("g_url"), key=gv("g_key"), code=gv("gj_code"), pass=gv("gj_pass"); if(!url||!key||!code){ alert("URL, key, 가구 코드를 모두 입력하세요."); return; } CFG={url:url,key:key,code:code,pass:pass}; initSb(); if(!sb){ alert("Supabase 연결 실패. URL/key를 확인하세요."); return; } var row=await cloudPull(); if(!row){ alert("해당 가구 코드를 찾을 수 없습니다. 코드와 URL을 확인하세요."); sb=null; return; } if((row.pass||"")!==(pass||"")){ alert("패스코드가 일치하지 않습니다."); sb=null; return; } cfgSave(); applying=true; S=migrate(row.data); localRev=row.rev; localStorage.setItem("moneyflow.rev",localRev); localStorage.setItem(KEY,JSON.stringify(S)); render(); ensureDot(); applying=false; subscribeRT(); gateClose(); syncDotSet("동기화됨","ok"); toast("가구 연결 완료"); }
-function openSyncSheet(){ if(!CFG||!sb){ gate(); return; } openSheet(`<h2>가구 동기화</h2>
-  <div class="field"><label>우리 가구 코드</label><input class="mono" readonly value="${esc(CFG.code)}"></div>
-  <div class="hint" style="margin-bottom:14px">이 코드와 패스코드를 배우자 폰의 '기존 가구 연결'에 입력하면 같은 화면을 봅니다.</div>
-  <button class="btn" onclick="cloudPush();closeSheet();toast('동기화 요청됨')">지금 강제 동기화</button>
-  <button class="btn ghost" onclick="closeSheet()">닫기</button>
+function cfgToLink(){ try{ var p=btoa(unescape(encodeURIComponent(JSON.stringify({url:CFG.url,key:CFG.key,code:CFG.code,pass:CFG.pass})))); return location.origin+location.pathname+"#cfg="+p; }catch(e){ return ""; } }
+function tryHashCfg(){ var m=(location.hash||"").match(/cfg=([^&]+)/); if(!m)return false; try{ var o=JSON.parse(decodeURIComponent(escape(atob(m[1])))); if(o&&o.url&&o.code){ CFG=o; cfgSave(); if(history.replaceState)history.replaceState(null,"",location.pathname); return true; } }catch(e){} return false; }
+function copyLink(){ var link=cfgToLink(); var done=function(){ toast("설정 링크 복사됨"); }; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(done,function(){ var b=document.getElementById("cfgLinkBox"); if(b){ b.select(); try{document.execCommand("copy")}catch(e){} done(); } }); } else { var b=document.getElementById("cfgLinkBox"); if(b){ b.select(); try{document.execCommand("copy")}catch(e){} done(); } } }
+function openSyncSheet(){ if(!CFG||!sb){ gate(); return; } openSheet(`<h2>가구 동기화 · 기기 추가</h2>
+  <div class="field"><label>우리 가구 코드</label><input class="mono" readonly onclick="this.select()" value="${esc(CFG.code)}"></div>
+  <div class="field"><label>새 기기 설정 링크 (폰 바꿀 때 사용)</label><input class="mono" id="cfgLinkBox" readonly onclick="this.select()" value="${esc(cfgToLink())}"></div>
+  <button class="btn" onclick="copyLink()">📋 설정 링크 복사</button>
+  <div class="hint" style="margin:8px 0 14px">폰을 바꾸거나 기기를 추가할 때, 이 링크를 새 폰 브라우저에서 열면 URL·키·가구코드·패스코드가 자동 입력됩니다. 비밀번호 관리앱에 저장해두세요. (링크에 키가 담겨 있으니 안전한 채널로만 전달하세요.)</div>
+  <button class="btn ghost" onclick="cloudPush();closeSheet();toast('동기화 요청됨')">지금 강제 동기화</button>
   <button class="btn danger" onclick="if(confirm('이 기기에서 연결을 해제할까요? 데이터는 클라우드에 남습니다.')){localStorage.removeItem(CFG_KEY);location.reload();}">이 기기 연결 해제</button>`); }
 
 /* ---- 초기화 ---- */
+if((location.hash||"").indexOf("cfg=")>=0)tryHashCfg();
 ensureDot();
 if(!CFG||!CFG.url||!CFG.code){ syncDotSet("연결 필요","err"); gate(); }
 else { initSb(); if(sb){ subscribeRT(); syncDotSet("동기화 중","saving"); cloudPull().then(function(row){ if(row){ if(row.rev>=localRev){ applying=true; S=migrate(row.data); localRev=row.rev; localStorage.setItem("moneyflow.rev",localRev); localStorage.setItem(KEY,JSON.stringify(S)); applying=false; render(); ensureDot(); } syncDotSet("동기화됨","ok"); } else { cloudPush(); } }); } else { syncDotSet("연결 필요","err"); gate(); } }
