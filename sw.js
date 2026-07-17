@@ -1,5 +1,5 @@
 /* 머니플로우 서비스워커 — 앱 껍데기 오프라인 캐시 */
-const CACHE = "moneyflow-v2";
+const CACHE = "moneyflow-v3";
 const ASSETS = [
   "./", "./index.html", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png", "./icon-maskable.png"
