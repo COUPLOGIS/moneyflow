@@ -1,0 +1,139 @@
+{
+  "project": "머니플로우 (MoneyFlow)",
+  "purpose": "월급·대출·생활비·투자를 통합 관리하고, 미래 현금 잔액·순자산·부동산 매각차익을 예측하는 부부 공용 가계 앱",
+  "type": "설치형 PWA (모바일 우선 웹앱, 홈화면 설치·오프라인 지원)",
+  "language": "ko",
+  "last_updated": "2026-07-17",
+
+  "deploy": {
+    "live_url": "https://couplogis.github.io/moneyflow/",
+    "repo": "https://github.com/COUPLOGIS/moneyflow",
+    "github_account": "COUPLOGIS",
+    "hosting": "GitHub Pages (master 브랜치 root, 자동 HTTPS)",
+    "local_git": "C:\\Users\\user\\moneyflow-app",
+    "nas_backup": "\\\\192.168.64.242\\공유폴더\\조한표\\ERP자동화\\moneyflow-app",
+    "redeploy": "로컬에서 파일 수정 → git commit → git push origin master → Pages 자동 갱신. index/sw 수정 시 sw.js의 CACHE 버전(moneyflow-vN)을 올려야 설치된 기기가 업데이트를 받음"
+  },
+
+  "tech": {
+    "frontend": "단일 index.html에 HTML/CSS/JS 전부 인라인, 외부 프레임워크 없음",
+    "charts": "직접 그린 SVG (라인차트·스파크라인, CDN 미사용)",
+    "fonts": "본고딕 계열 우선 스택 (Pretendard→Apple SD Gothic Neo→Noto Sans KR), 금액은 monospace+tabular-nums",
+    "theme": "라이트 고정 (html data-theme=light) — 기기 다크모드 무시",
+    "pwa": "manifest.webmanifest + sw.js(서비스워커, 앱셸 오프라인 캐시) + PNG 아이콘",
+    "sync_lib": "@supabase/supabase-js@2 (CDN)"
+  },
+
+  "files": {
+    "index.html": "앱 본체 — 모든 화면·계산·동기화 로직 포함(약 930줄)",
+    "manifest.webmanifest": "PWA 설치 정보(이름·아이콘·standalone·색상)",
+    "sw.js": "서비스워커 — 앱셸 오프라인 캐시(같은 출처만 캐시, Supabase 요청은 네트워크로 통과)",
+    "icon-192.png / icon-512.png / icon-maskable.png": "앱 아이콘(₩ 심볼, 제이드 그라디언트)",
+    "README.md": "사람용 설치·배포·사용 설명서 + Supabase SQL",
+    "project.json": "이 파일 — 프로젝트 구조·내용 파악용 요약",
+    ".gitignore": "비밀키/임시파일 커밋 방지"
+  },
+
+  "tabs": {
+    "home": "홈 — 오늘 현금잔액+미니곡선, 순자산/이번달 순흐름/투자/대출 요약, 마이너스 위험 경고, 다가오는 30일",
+    "flow": "흐름 — 향후 90일 날짜별 타임라인(수입 초록/지출 빨강)+시점별 잔액",
+    "forecast": "예측 — 현금·순자산 곡선(3/6/12/24개월), 특정 날짜 잔고 조회, 시나리오 슬라이더(월 수입/지출 조정)",
+    "assets": "자산 — 대출(잔여원금·상환진행·완납일 자동계산) + 투자(목표수익률 자동계산+수동보정), 순자산 요약",
+    "estate": "부동산 — 국가모기지(주택담보장기대출) 매각 예상차익 계산기",
+    "settings": "설정 — 기준잔액 보정, 고정수입/지출(자동이체 정보)·단발성 CRUD, 데이터 내보내기/초기화"
+  },
+
+  "data_model": {
+    "storage": "localStorage 키 'moneyflow.v2'에 전체 상태(S) JSON 저장. 클라우드는 같은 JSON을 households.data에 저장",
+    "S": {
+      "baseCash": "기준 현금잔액(원). 예측의 출발점, 실제와 갭 시 수동보정",
+      "baseDate": "기준일 YYYY-MM-DD",
+      "recurring[]": {
+        "설명": "고정 반복 항목(수입/지출)",
+        "id": "string",
+        "name": "이름",
+        "kind": "income | expense",
+        "cat": "카테고리(급여/주거/생활/구독/통신/교통/보험/세금/의료/교육/모임/저축/기타)",
+        "freq": "monthly | biweekly | quarterly | yearly",
+        "day": "월/분기/연 기준 일(1~31), biweekly는 start가 기준",
+        "month": "yearly일 때 월(1~12)",
+        "start": "시작일",
+        "end": "종료일(기본 2100-01-01=무기한)",
+        "bank": "자동이체 은행/메모(선택)",
+        "account": "계좌번호(선택)",
+        "segs[]": "시제변경 이력 [{from:YYYY-MM-DD, amount}] — 특정일부터 금액변경, 과거 보존(effective-date)"
+      },
+      "oneoff[]": {
+        "설명": "단발성(일회성) 항목",
+        "id": "string", "name": "이름", "kind": "income|expense",
+        "cat": "카테고리", "date": "발생일 하나", "amount": "금액(원)"
+      },
+      "loans[]": {
+        "설명": "대출(현금흐름에 월 상환액 -, 순자산에 잔여원금 -)",
+        "id": "string", "name": "이름", "principal": "원금",
+        "rate": "연금리(%)", "payment": "월 상환액", "day": "상환일",
+        "start": "시작일", "end": "종료일(기본 2100-01-01)"
+      },
+      "stocks[]": {
+        "설명": "투자(순자산에 평가액 +). 화면 표기는 '투자'",
+        "id": "string", "name": "종목/계좌명", "cost": "총 투입금",
+        "target": "목표 수익률(%)",
+        "actual": "현재 평가액(수동 입력). 비우면 cost*(1+target/100)로 자동계산",
+        "date": "매수일(선택)"
+      },
+      "realestate": {
+        "설명": "부동산 국가모기지 매각차익 계산 변수(캐쉬저장)",
+        "acquire": "취득가액(원)",
+        "loanBase": "대출 기준가(LTV 적용 기준, 원)",
+        "ltv": "담보인정비율 30|40|50(%)",
+        "rate": "대출 연금리(%)", "term": "대출 기간(년)",
+        "baseYear": "1년차 기준연도(2027)",
+        "sellYear": "매각 연도",
+        "salePrice": "매도금액(원)"
+      }
+    }
+  },
+
+  "domain_logic": {
+    "cash_projection": "baseCash에서 시작해 recurring/oneoff/대출상환을 날짜별로 가감, 일단위로 12~24개월 곡선 생성. 마이너스 되는 최초 시점 경고",
+    "net_worth": "현금 + 투자평가액 - 대출잔여원금",
+    "recurring_effective_amount": "segs 중 from<=해당일인 마지막 값 적용(시제변경·과거보존)",
+    "investment_value": "actual 있으면 그 값, 없으면 cost*(1+target/100)",
+    "estate_profit_share_table": {
+      "설명": "국가모기지 이익공유율(%) = 담보인정비율 × 사용년차. 자녀2 기준",
+      "LTV50": "1~9년:20, 10:18, 11:16, 12:14, 13:12, 14~30:10",
+      "LTV40": "1~9년:15, 10:13, 11~30:10",
+      "LTV30": "전 구간:10"
+    },
+    "estate_formulas": {
+      "사용년차": "sellYear - baseYear + 1",
+      "대출원금": "round(loanBase * ltv/100)",
+      "자기자본": "acquire - 대출원금",
+      "누적원금상환/누적이자": "대출원금을 rate·term 원리금균등으로 (사용년차*12)개월 상환한 누적치",
+      "대출잔여원금": "대출원금 - 누적원금상환",
+      "양도차익": "salePrice - acquire",
+      "이익공유환수금": "max(0, 양도차익) * 이익공유율",
+      "매도실수령액": "salePrice - 대출잔여원금 - 이익공유환수금",
+      "최종순수익": "매도실수령액 - 자기자본 - 누적원금상환 - 누적이자"
+    }
+  },
+
+  "sync": {
+    "backend": "Supabase (관리형 Postgres)",
+    "model": "공유코드 방식 — 부부 2인이 하나의 가구 데이터 공유, 개인계정 없음",
+    "table": {
+      "name": "households",
+      "columns": "code(text PK, 사실상 비밀키), pass(text 패스코드), data(jsonb 전체상태), rev(bigint 버전), updated_at(timestamptz)"
+    },
+    "conflict": "last-write-wins(마지막 저장 우선), rev로 최신 판별",
+    "realtime": "households 테이블 postgres_changes 구독 → 다른 기기 변경 시 자동 반영",
+    "config_keys": "앱 실행 중 입력(Supabase URL + publishable(anon) key + 가구코드 + 패스코드), localStorage 'moneyflow.cfg'에 저장. 코드에 하드코딩 안 함",
+    "device_transfer": "동기화 뱃지 → '설정 링크 복사'로 만든 링크(#cfg=base64)를 새 폰에서 열면 자동설정. 폰 교체 시 사용",
+    "security_note": "publishable key와 가구코드는 기기에만 저장(공개 레포에 미포함). DB password와 secret key는 절대 앱/레포에 넣지 않음"
+  },
+
+  "current_supabase": {
+    "note": "실제 운영 키는 여기 저장하지 않음(보안). 앱 첫 화면에서 입력",
+    "project_url_example": "https://<ref>.supabase.co"
+  }
+}
