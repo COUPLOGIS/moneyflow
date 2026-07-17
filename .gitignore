@@ -1,0 +1,12 @@
+# 비밀키/자격증명 방지
+client_secret*.json
+*credentials*.json
+*.pem
+*.key
+.env
+.env.*
+# 임시/빌드
+_inject_*
+node_modules/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>머니플로우 — 현금흐름 예측</title>
+<meta name="theme-color" content="#0E7A63">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="머니플로우">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.syncdot{font-size:10.5px;font-weight:650;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-3);cursor:pointer;align-self:center;white-space:nowrap;border:none}
+.syncdot.ok{color:var(--pos);background:var(--pos-soft)}
+.syncdot.saving{color:var(--warn);background:var(--warn-soft)}
+.syncdot.err{color:var(--neg);background:var(--neg-soft)}
+.gate{position:fixed;inset:0;z-index:100;background:var(--ground);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.gate input{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:var(--raise);color:var(--ink);outline:none;font-size:16px;font-family:var(--ui)}
+.gate input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.gate h1{font-weight:700}
+</style>
+</head>
+<body>
+
+<style>
+  :root{
+    --ground:#F2F4F3; --surface:#FFFFFF; --surface-2:#EAEDEB; --raise:#FBFCFB;
+    --ink:#151A18; --ink-2:#586460; --ink-3:#8B948F; --line:#E2E6E3;
+    --accent:#0E7A63; --accent-2:#0B6553; --accent-soft:#D9ECE5;
+    --pos:#1B9A5F; --pos-soft:#DBF0E4;
+    --neg:#D9564A; --neg-soft:#F7E1DE;
+    --warn:#B77A12; --warn-soft:#F5E9CF;
+    --gold:#B08420; --gold-soft:#F4EAD0;
+    --mono:"SF Mono","Cascadia Code","Consolas","Roboto Mono",ui-monospace,monospace;
+    --ui:"Pretendard","Pretendard Variable","Apple SD Gothic Neo","Noto Sans KR","Noto Sans CJK KR",-apple-system,"Malgun Gothic",system-ui,sans-serif;
+    --shadow:0 1px 2px rgba(20,30,26,.05),0 6px 20px rgba(20,30,26,.06);
+    --shadow-lg:0 8px 40px rgba(20,30,26,.16);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#0D1210; --surface:#151B18; --surface-2:#1E2622; --raise:#1A211D;
+      --ink:#E9EEEB; --ink-2:#9AA6A0; --ink-3:#69736D; --line:#28312C;
+      --accent:#38CC9F; --accent-2:#2FB68C; --accent-soft:#12332A;
+      --pos:#3ACB84; --pos-soft:#132E20;
+      --neg:#EB6A5C; --neg-soft:#33201D;
+      --warn:#D69A34; --warn-soft:#322817;
+      --gold:#D9B15A; --gold-soft:#2E2814;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.35);
+      --shadow-lg:0 12px 48px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#F2F4F3; --surface:#FFFFFF; --surface-2:#EAEDEB; --raise:#FBFCFB;
+    --ink:#151A18; --ink-2:#586460; --ink-3:#8B948F; --line:#E2E6E3;
+    --accent:#0E7A63; --accent-2:#0B6553; --accent-soft:#D9ECE5;
+    --pos:#1B9A5F; --pos-soft:#DBF0E4; --neg:#D9564A; --neg-soft:#F7E1DE;
+    --warn:#B77A12; --warn-soft:#F5E9CF; --gold:#B08420; --gold-soft:#F4EAD0;
+    --shadow:0 1px 2px rgba(20,30,26,.05),0 6px 20px rgba(20,30,26,.06);
+    --shadow-lg:0 8px 40px rgba(20,30,26,.16);
+  }
+  :root[data-theme="dark"]{
+    --ground:#0D1210; --surface:#151B18; --surface-2:#1E2622; --raise:#1A211D;
+    --ink:#E9EEEB; --ink-2:#9AA6A0; --ink-3:#69736D; --line:#28312C;
+    --accent:#38CC9F; --accent-2:#2FB68C; --accent-soft:#12332A;
+    --pos:#3ACB84; --pos-soft:#132E20; --neg:#EB6A5C; --neg-soft:#33201D;
+    --warn:#D69A34; --warn-soft:#322817; --gold:#D9B15A; --gold-soft:#2E2814;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.35);
+    --shadow-lg:0 12px 48px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--ground);color:var(--ink);font-family:var(--ui);
+    -webkit-font-smoothing:antialiased;line-height:1.45}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,select{font-family:inherit;font-size:16px}
+  h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
+  .app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--ground);
+    position:relative;display:flex;flex-direction:column}
+  @media (min-width:520px){
+    .app{margin:24px auto;min-height:calc(100vh - 48px);border-radius:28px;
+      box-shadow:var(--shadow-lg);overflow:hidden;border:1px solid var(--line)}
+  }
+  .scroll{flex:1;overflow-y:auto;padding:0 16px 108px}
+  .topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 86%,transparent);
+    backdrop-filter:blur(12px);padding:16px 16px 10px;display:flex;align-items:baseline;
+    justify-content:space-between;border-bottom:1px solid transparent}
+  .topbar.stuck{border-color:var(--line)}
+  .topbar .ttl{font-size:20px;font-weight:700}
+  .topbar .sub{font-size:12px;color:var(--ink-3)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;
+    padding:16px;box-shadow:var(--shadow);margin-top:12px}
+  .card.pad0{padding:0;overflow:hidden}
+  .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:650}
+  .hero-num{font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin-top:4px}
+  .row{display:flex;align-items:center;gap:10px}
+  .between{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .muted{color:var(--ink-2)} .dim{color:var(--ink-3)}
+  .pos{color:var(--pos)} .neg{color:var(--neg)} .accent{color:var(--accent)}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+    padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+  .chip.pos{background:var(--pos-soft);color:var(--pos)}
+  .chip.neg{background:var(--neg-soft);color:var(--neg)}
+  .chip.warn{background:var(--warn-soft);color:var(--warn)}
+  .chip.accent{background:var(--accent-soft);color:var(--accent)}
+  .divider{height:1px;background:var(--line);margin:12px -16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .li{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .li:last-child{border-bottom:none}
+  .li .ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+    font-size:17px;background:var(--surface-2);flex:none}
+  .li .grow{flex:1;min-width:0}
+  .li .nm{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .li .meta{font-size:12px;color:var(--ink-3);margin-top:1px}
+  .li .amt{font-weight:650;font-size:14.5px;white-space:nowrap}
+  .li.tap{cursor:pointer} .li.tap:active{background:var(--surface-2)}
+  .sec-h{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 2px}
+  .sec-h h3{font-size:15px}
+  .addbtn{font-size:13px;font-weight:650;color:var(--accent);padding:6px 10px;border-radius:9px}
+  .addbtn:active{background:var(--accent-soft)}
+  .empty{text-align:center;color:var(--ink-3);font-size:13px;padding:26px 10px}
+  .nav{position:absolute;left:0;right:0;bottom:0;display:flex;background:color-mix(in srgb,var(--surface) 92%,transparent);
+    backdrop-filter:blur(14px);border-top:1px solid var(--line);padding:6px 3px calc(6px + env(safe-area-inset-bottom))}
+  .nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+    padding:7px 1px;border-radius:12px;color:var(--ink-3);font-size:10px;font-weight:600}
+  .nav button svg{width:21px;height:21px;stroke:currentColor;stroke-width:1.7;fill:none}
+  .nav button.on{color:var(--accent)}
+  .nav button.on svg{stroke-width:2}
+  .seg{display:flex;background:var(--surface-2);border-radius:11px;padding:3px;gap:2px}
+  .seg button{flex:1;padding:7px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--ink-2)}
+  .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+  .tl-day{display:flex;gap:12px;padding:2px 0}
+  .tl-date{width:52px;flex:none;text-align:right;padding-top:11px}
+  .tl-date .d{font-size:16px;font-weight:700;line-height:1}
+  .tl-date .m{font-size:10.5px;color:var(--ink-3)}
+  .tl-line{position:relative;width:14px;flex:none;display:flex;justify-content:center}
+  .tl-line::before{content:"";position:absolute;top:0;bottom:0;width:2px;background:var(--line)}
+  .tl-dot{width:11px;height:11px;border-radius:50%;background:var(--ink-3);margin-top:13px;z-index:1;border:2px solid var(--surface)}
+  .tl-body{flex:1;padding:6px 0 14px}
+  .tl-ev{display:flex;justify-content:space-between;gap:8px;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;padding:9px 12px;margin-bottom:6px;box-shadow:var(--shadow)}
+  .tl-bal{font-size:11.5px;color:var(--ink-3);padding-left:2px}
+  .scrim{position:fixed;inset:0;background:rgba(10,16,14,.44);z-index:50;opacity:0;
+    pointer-events:none;transition:opacity .22s}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;
+    background:var(--surface);border-radius:22px 22px 0 0;padding:8px 18px calc(20px + env(safe-area-inset-bottom));
+    transform:translateY(102%);transition:transform .26s cubic-bezier(.3,.8,.3,1);max-height:92%;overflow-y:auto}
+  .scrim.open .sheet{transform:translateY(0)}
+  .grab{width:38px;height:4px;border-radius:2px;background:var(--line);margin:8px auto 6px}
+  .sheet h2{font-size:18px;margin:6px 2px 14px}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:12px;font-weight:650;color:var(--ink-2);margin-bottom:6px}
+  .field input,.field select{width:100%;padding:12px 13px;border:1px solid var(--line);
+    border-radius:11px;background:var(--raise);color:var(--ink);outline:none}
+  .field input:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .field .hint{font-size:11.5px;color:var(--ink-3);margin-top:5px}
+  .f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .kindtog{display:flex;gap:8px}
+  .kindtog button{flex:1;padding:11px;border-radius:11px;border:1.5px solid var(--line);
+    font-weight:650;font-size:13.5px;color:var(--ink-2);background:var(--raise)}
+  .kindtog button.on-pos{border-color:var(--pos);background:var(--pos-soft);color:var(--pos)}
+  .kindtog button.on-neg{border-color:var(--neg);background:var(--neg-soft);color:var(--neg)}
+  .btn{display:block;width:100%;padding:14px;border-radius:13px;background:var(--accent);
+    color:#fff;font-weight:700;font-size:15px;margin-top:6px}
+  .btn:active{background:var(--accent-2)}
+  .btn.ghost{background:var(--surface-2);color:var(--ink-2);margin-top:9px}
+  .btn.danger{background:var(--neg-soft);color:var(--neg)}
+  :root[data-theme="dark"] .btn:not(.ghost):not(.danger){color:#08130F}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn:not(.ghost):not(.danger){color:#08130F}}
+  .catrow{display:flex;flex-wrap:wrap;gap:7px}
+  .catrow button{padding:8px 13px;border-radius:10px;border:1px solid var(--line);
+    background:var(--raise);font-size:13px;font-weight:600;color:var(--ink-2)}
+  .catrow button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+  .warn-banner{display:flex;gap:10px;align-items:flex-start;background:var(--warn-soft);
+    border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);border-radius:14px;padding:12px 14px;margin-top:12px}
+  .warn-banner .wt{font-weight:700;color:var(--warn);font-size:13.5px}
+  .warn-banner .wd{font-size:12.5px;color:var(--ink-2);margin-top:2px}
+  .ok-banner{display:flex;gap:10px;align-items:center;background:var(--pos-soft);
+    border:1px solid color-mix(in srgb,var(--pos) 28%,transparent);border-radius:14px;padding:12px 14px;margin-top:12px}
+  .ok-banner .wt{font-weight:700;color:var(--pos);font-size:13.5px}
+  .slider{width:100%;margin:8px 0 2px;accent-color:var(--accent)}
+  .barwrap{height:7px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin-top:8px}
+  .bar{height:100%;background:var(--accent);border-radius:4px}
+  .toast{position:absolute;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:var(--ground);padding:10px 18px;border-radius:999px;font-size:13px;
+    font-weight:600;opacity:0;transition:.25s;z-index:60;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  svg .grid{stroke:var(--line)}
+  .legend{display:flex;gap:14px;font-size:11.5px;color:var(--ink-2);margin-top:8px;flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+  /* inline calc inputs */
+  .inrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .inrow:last-child{border-bottom:none}
+  .inrow>label{font-size:13px;color:var(--ink-2);font-weight:600;flex:none}
+  .inrow input,.inrow select{width:56%;text-align:right;padding:9px 11px;border:1px solid var(--line);
+    border-radius:10px;background:var(--raise);color:var(--ink);outline:none;font-family:var(--mono);
+    font-variant-numeric:tabular-nums;font-weight:600}
+  .inrow input:focus,.inrow select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .resrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:8px 0}
+  .resrow .rk{font-size:13px;color:var(--ink-2)}
+  .resrow .rk small{display:block;color:var(--ink-3);font-size:11px;font-weight:400;margin-top:1px}
+  .resrow .rv{font-weight:650}
+  /* share table */
+  .stbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+  .stbl th,.stbl td{border:1px solid var(--line);padding:6px 4px;text-align:center;font-variant-numeric:tabular-nums}
+  .stbl th{background:var(--surface-2);color:var(--ink-2);font-weight:650;font-size:11px}
+  .stbl td.yr{color:var(--ink-3);font-weight:600}
+  .stbl td.hit{background:var(--gold-soft);color:var(--gold);font-weight:800;outline:2px solid var(--gold);position:relative;z-index:1}
+  .stbl td.colon{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+</style>
+
+<div class="app" id="app">
+  <div class="topbar" id="topbar">
+    <div><div class="ttl" id="pageTitle">홈</div></div>
+    <div class="sub mono" id="pageDate"></div>
+  </div>
+  <div class="scroll" id="scroll"></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="toast" id="toast"></div>
+</div>
+<div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
+
+<script>
+"use strict";
+const KEY="moneyflow.v2";
+const todayISO=()=>new Date().toISOString().slice(0,10);
+function defaultState(){
+  const t=todayISO();
+  return {
+    baseCash:5200000, baseDate:t,
+    recurring:[
+      {id:id(),name:"월급",kind:"income",cat:"급여",freq:"monthly",day:25,start:t,end:"2100-01-01",bank:"국민",account:"",segs:[{from:t,amount:3200000}]},
+      {id:id(),name:"월세",kind:"expense",cat:"주거",freq:"monthly",day:5,start:t,end:"2100-01-01",bank:"신한 자동이체",account:"110-***-4567",segs:[{from:t,amount:550000}]},
+      {id:id(),name:"통신+구독",kind:"expense",cat:"구독",freq:"monthly",day:15,start:t,end:"2100-01-01",bank:"카카오뱅크 자동이체",account:"3333-**-1234",segs:[{from:t,amount:120000}]},
+      {id:id(),name:"생활비",kind:"expense",cat:"생활",freq:"monthly",day:1,start:t,end:"2100-01-01",bank:"",account:"",segs:[{from:t,amount:900000}]},
+      {id:id(),name:"자동차세",kind:"expense",cat:"세금",freq:"yearly",day:16,month:6,start:t,end:"2100-01-01",bank:"",account:"",segs:[{from:t,amount:520000}]},
+    ],
+    oneoff:[
+      {id:id(),name:"경조사",kind:"expense",cat:"기타",date:addDaysISO(t,12),amount:200000},
+      {id:id(),name:"성과급",kind:"income",cat:"급여",date:addDaysISO(t,48),amount:1500000},
+    ],
+    loans:[
+      {id:id(),name:"신용대출",principal:24000000,rate:5.4,payment:800000,day:10,start:t,end:"2100-01-01"},
+    ],
+    stocks:[
+      {id:id(),name:"국내 ETF",cost:6000000,target:12,actual:6850000,date:addDaysISO(t,-200)},
+      {id:id(),name:"미국주식",cost:4000000,target:15,actual:3600000,date:addDaysISO(t,-120)},
+      {id:id(),name:"연금저축(적립)",cost:12000000,target:6,actual:"",date:addDaysISO(t,-400)},
+    ],
+    realestate:{acquire:640000000,loanBase:620000000,ltv:50,rate:1.3,term:30,baseYear:2027,sellYear:2032,salePrice:1300000000},
+  };
+}
+function id(){return Math.random().toString(36).slice(2,9)}
+let S=migrate(load());
+function load(){try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):defaultState()}catch(e){return defaultState()}}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));if(typeof schedulePush==="function"&&!applying)schedulePush();}
+function migrate(s){
+  if(!s.realestate)s.realestate=defaultState().realestate;
+  if(s.realestate.loanBase===undefined)s.realestate.loanBase=s.realestate.loan&&s.realestate.ltv?Math.round(s.realestate.loan/(s.realestate.ltv/100)):620000000;
+  (s.stocks||[]).forEach(x=>{if(x.target===undefined)x.target=0;if(x.actual===undefined)x.actual=(x.value!==undefined?x.value:"")});
+  (s.recurring||[]).forEach(r=>{if(r.bank===undefined)r.bank="";if(r.account===undefined)r.account=""});
+  return s;
+}
+
+/* dates */
+function parseISO(s){const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)}
+function toISO(dt){return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0")}
+function addDaysISO(s,n){const d=parseISO(s);d.setDate(d.getDate()+n);return toISO(d)}
+function addMonths(dt,n){const d=new Date(dt);d.setMonth(d.getMonth()+n);return d}
+function daysBetween(a,b){return Math.round((parseISO(b)-parseISO(a))/86400000)}
+function clampDay(y,m,day){const last=new Date(y,m+1,0).getDate();return Math.min(day,last)}
+const MON=["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+function fmtDateK(s){const d=parseISO(s);return(d.getMonth()+1)+"월 "+d.getDate()+"일"}
+function fmtDateFull(s){const d=parseISO(s);return d.getFullYear()+"년 "+(d.getMonth()+1)+"월 "+d.getDate()+"일"}
+function fmtDateShort(s){const d=parseISO(s);return(d.getMonth()+1)+"/"+d.getDate()}
+function won(n){const s=Math.round(Math.abs(n)).toLocaleString("en-US");return(n<0?"-":"")+"₩"+s}
+function wonSigned(n){const s=Math.round(Math.abs(n)).toLocaleString("en-US");return(n<0?"−":"+")+"₩"+s}
+function manLabel(n){const v=n/10000;if(Math.abs(v)>=10000)return(v/10000).toFixed(1)+"억";return Math.round(v).toLocaleString("en-US")+"만"}
+function eok(n){return(n/100000000).toFixed(2)+"억"}
+
+/* projection */
+function effAmount(item,iso){let a=item.segs[0].amount;for(const s of item.segs){if(s.from<=iso)a=s.amount}return a}
+function catIcon(cat){return({급여:"💰",주거:"🏠",구독:"📺",생활:"🛒",세금:"🧾",교통:"🚗",보험:"🛡️",통신:"📱",대출:"🏦",주식:"📈",기타:"✦",저축:"🐷",의료:"🏥",교육:"📚",모임:"🎉"})[cat]||"✦"}
+function stockValue(s){const a=s.actual;const has=(a!==""&&a!==undefined&&a!==null);return has?(+a):Math.round((+s.cost||0)*(1+(+s.target||0)/100))}
+function occurrences(item,from,to){
+  const out=[];const start=item.start>from?item.start:from;
+  if(item.end<from)return out;
+  const end=item.end<to?item.end:to;
+  if(item.freq==="monthly"||item.freq==="quarterly"||item.freq==="yearly"){
+    let d=parseISO(from);d.setDate(1);
+    for(let i=0;i<520;i++){
+      const y=d.getFullYear(),m=d.getMonth();
+      if(item.freq==="yearly"&&(m+1)!==(item.month||1)){d=addMonths(d,1);continue}
+      if(item.freq==="quarterly"){const anchorM=parseISO(item.start).getMonth();
+        if(((m-anchorM)%3+3)%3!==0){d=addMonths(d,1);continue}}
+      const iso=toISO(new Date(y,m,clampDay(y,m,item.day)));
+      if(iso>=start&&iso<=end&&iso>=from&&iso<=to)out.push({date:iso,amount:effAmount(item,iso)});
+      d=addMonths(d,1);if(toISO(d)>to)break;
+    }
+  }else if(item.freq==="biweekly"){
+    let iso=item.start;while(iso<from)iso=addDaysISO(iso,14);
+    while(iso<=end){if(iso>=from)out.push({date:iso,amount:effAmount(item,iso)});iso=addDaysISO(iso,14)}
+  }
+  return out;
+}
+function loanPayments(loan,from,to){
+  const out=[];const start=loan.start>from?loan.start:from;const end=loan.end<to?loan.end:to;
+  let d=parseISO(from);d.setDate(1);
+  for(let i=0;i<520;i++){const y=d.getFullYear(),m=d.getMonth();
+    const iso=toISO(new Date(y,m,clampDay(y,m,loan.day)));
+    if(iso>=start&&iso<=end&&iso>=from&&iso<=to)out.push({date:iso,amount:loan.payment});
+    d=addMonths(d,1);if(toISO(d)>to)break;}
+  return out;
+}
+function loanRemainingAt(loan,iso){
+  let bal=loan.principal;const mRate=(loan.rate||0)/100/12;
+  const pays=loanPayments(loan,loan.start,iso);
+  for(const p of pays){const interest=bal*mRate;let princ=p.amount-interest;
+    if(princ<0)princ=0;if(princ>bal)princ=bal;bal-=princ;if(bal<=0){bal=0;break}}
+  return bal;
+}
+function loanRemainingNow(loan){return loanRemainingAt(loan,S.baseDate)}
+function totalStockValue(){return S.stocks.reduce((a,s)=>a+stockValue(s),0)}
+function netNow(){return S.baseCash+totalStockValue()-S.loans.reduce((a,l)=>a+loanRemainingNow(l),0)}
+function buildSeries(months,scenario){
+  scenario=scenario||{inc:0,exp:0};
+  const from=S.baseDate,to=toISO(addMonths(parseISO(S.baseDate),months));
+  const map={};const push=(iso,amt)=>{if(iso<from||iso>to)return;map[iso]=(map[iso]||0)+amt};
+  for(const r of S.recurring){const sign=r.kind==="income"?1:-1;for(const o of occurrences(r,from,to))push(o.date,sign*o.amount)}
+  for(const o of S.oneoff){if(o.date>from&&o.date<=to)push(o.date,(o.kind==="income"?1:-1)*o.amount)}
+  for(const l of S.loans){for(const p of loanPayments(l,from,to))if(p.date>from)push(p.date,-p.amount)}
+  if(scenario.inc||scenario.exp){let d=addMonths(parseISO(from),1);d.setDate(1);
+    while(toISO(d)<=to){push(toISO(d),scenario.inc-scenario.exp);d=addMonths(d,1)}}
+  const totalStock=totalStockValue();
+  const pts=[];let cash=S.baseCash,minCash=cash,minDate=from,firstNeg=null;
+  const nDays=daysBetween(from,to);
+  for(let i=0;i<=nDays;i++){const iso=addDaysISO(from,i);if(i>0&&map[iso])cash+=map[iso];
+    const debt=S.loans.reduce((a,l)=>a+loanRemainingAt(l,iso),0);
+    pts.push({date:iso,cash,net:cash+totalStock-debt});
+    if(cash<minCash){minCash=cash;minDate=iso}if(cash<0&&!firstNeg)firstNeg=iso;}
+  return {pts,minCash,minDate,firstNeg,totalStock};
+}
+function projectTo(targetISO){
+  if(targetISO<=S.baseDate)return {cash:S.baseCash,net:netNow(),date:S.baseDate};
+  const months=Math.ceil(daysBetween(S.baseDate,targetISO)/30)+2;
+  const s=buildSeries(months,{});const p=s.pts.find(x=>x.date===targetISO);
+  return p?{cash:p.cash,net:p.net,date:targetISO}:{...s.pts[s.pts.length-1]};
+}
+
+/* charts */
+function lineChart(pts,opts){
+  opts=opts||{};const W=448,H=opts.h||188,padL=6,padR=6,padT=14,padB=20;
+  const keys=opts.keys||["cash"];let lo=Infinity,hi=-Infinity;
+  pts.forEach(p=>keys.forEach(k=>{lo=Math.min(lo,p[k]);hi=Math.max(hi,p[k])}));
+  if(opts.includeZero){lo=Math.min(lo,0);hi=Math.max(hi,0)}if(lo===hi){hi+=1;lo-=1}
+  const pad=(hi-lo)*0.12;hi+=pad;lo-=pad;
+  const iw=W-padL-padR,ih=H-padT-padB;
+  const X=i=>padL+iw*(i/(pts.length-1)),Y=v=>padT+ih*(1-(v-lo)/(hi-lo));
+  const path=k=>{let d="";pts.forEach((p,i)=>{d+=(i?"L":"M")+X(i).toFixed(1)+" "+Y(p[k]).toFixed(1)});return d};
+  const area=k=>{let d="M"+X(0)+" "+Y(pts[0][k]);pts.forEach((p,i)=>{if(i)d+="L"+X(i).toFixed(1)+" "+Y(p[k]).toFixed(1)});
+    d+="L"+X(pts.length-1)+" "+(padT+ih)+"L"+X(0)+" "+(padT+ih)+"Z";return d};
+  let grid="",labels="";
+  for(let i=0;i<pts.length;i++){const d=parseISO(pts[i].date);
+    if(d.getDate()===1){const x=X(i).toFixed(1);
+      grid+=`<line class="grid" x1="${x}" y1="${padT}" x2="${x}" y2="${padT+ih}" stroke-opacity=".55"/>`;
+      if(d.getMonth()%(pts.length>200?2:1)===0||pts.length<95)
+        labels+=`<text x="${x}" y="${H-6}" fill="var(--ink-3)" font-size="9.5" text-anchor="middle">${d.getMonth()+1}월</text>`;}}
+  let zero="";if(lo<0&&hi>0){const zy=Y(0).toFixed(1);
+    zero=`<line x1="${padL}" y1="${zy}" x2="${W-padR}" y2="${zy}" stroke="var(--neg)" stroke-dasharray="3 3" stroke-opacity=".6"/>`}
+  const col={cash:"var(--accent)",net:"var(--gold)"};const fillId="g"+Math.random().toString(36).slice(2,6);
+  let defs=`<linearGradient id="${fillId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient>`;
+  let body="";if(keys.includes("cash"))body+=`<path d="${area('cash')}" fill="url(#${fillId})"/>`;
+  keys.forEach(k=>{body+=`<path d="${path(k)}" fill="none" stroke="${col[k]}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`});
+  keys.forEach(k=>{const i=pts.length-1;body+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(pts[i][k]).toFixed(1)}" r="3.6" fill="${col[k]}" stroke="var(--surface)" stroke-width="2"/>`});
+  if(opts.mark){const mi=pts.findIndex(p=>p.date===opts.mark.date);
+    if(mi>=0)body+=`<circle cx="${X(mi).toFixed(1)}" cy="${Y(pts[mi].cash).toFixed(1)}" r="3.4" fill="var(--neg)" stroke="var(--surface)" stroke-width="2"/>`}
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="display:block"><defs>${defs}</defs>${grid}${zero}${body}${labels}</svg>`;
+}
+function sparkline(pts,key){
+  const W=120,H=40;let lo=Infinity,hi=-Infinity;pts.forEach(p=>{lo=Math.min(lo,p[key]);hi=Math.max(hi,p[key])});if(lo===hi){hi++;lo--}
+  const X=i=>W*(i/(pts.length-1)),Y=v=>H-2-((H-4)*(v-lo)/(hi-lo));
+  let d="";pts.forEach((p,i)=>{d+=(i?"L":"M")+X(i).toFixed(1)+" "+Y(p[key]).toFixed(1)});
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>`;
+}
+
+/* shell */
+let TAB="home",fc={months:12,inc:0,exp:0,date:""};
+const TABS=[
+  {k:"home",t:"홈",ic:'<path d="M3 10.5 12 4l9 6.5"/><path d="M5 9.5V20h14V9.5"/>'},
+  {k:"flow",t:"흐름",ic:'<path d="M4 7h16M4 12h16M4 17h10"/>'},
+  {k:"forecast",t:"예측",ic:'<path d="M4 19V5M4 19h16"/><path d="M7 15l3-4 3 2 4-6"/>'},
+  {k:"assets",t:"자산",ic:'<path d="M3 8l9-4 9 4-9 4-9-4Z"/><path d="M3 12l9 4 9-4M3 16l9 4 9-4"/>'},
+  {k:"estate",t:"부동산",ic:'<path d="M4 21V8l8-4 8 4v13"/><path d="M9 21v-5h6v5"/><path d="M8 11h.5M15 11h.5"/>'},
+  {k:"settings",t:"설정",ic:'<circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.9 7.9 0 0 0 0-2l1.8-1.4-2-3.4-2.1.9a7.9 7.9 0 0 0-1.7-1L15 3H9l-.4 2.1a7.9 7.9 0 0 0-1.7 1l-2.1-.9-2 3.4L4.6 11a7.9 7.9 0 0 0 0 2l-1.8 1.4 2 3.4 2.1-.9a7.9 7.9 0 0 0 1.7 1L9 21h6l.4-2.1a7.9 7.9 0 0 0 1.7-1l2.1.9 2-3.4Z"/>'},
+];
+function renderNav(){document.getElementById("nav").innerHTML=TABS.map(t=>
+  `<button class="${TAB===t.k?'on':''}" onclick="go('${t.k}')"><svg viewBox="0 0 24 24">${t.ic}</svg>${t.t}</button>`).join("")}
+function go(k){TAB=k;render();document.getElementById("scroll").scrollTop=0}
+const T={home:"홈",flow:"흐름 · 향후 90일",forecast:"미래 예측",assets:"자산 · 순자산",estate:"부동산 예상차익",settings:"설정"};
+function render(){
+  document.getElementById("pageTitle").textContent=T[TAB];
+  document.getElementById("pageDate").textContent="기준 "+fmtDateShort(S.baseDate);
+  renderNav();
+  document.getElementById("scroll").innerHTML=({home:viewHome,flow:viewFlow,forecast:viewForecast,assets:viewAssets,estate:viewEstate,settings:viewSettings})[TAB]();
+}
+document.getElementById("scroll").addEventListener("scroll",e=>{document.getElementById("topbar").classList.toggle("stuck",e.target.scrollTop>4)});
+
+/* HOME */
+function viewHome(){
+  const s=buildSeries(12,{});const totalStock=s.totalStock;
+  const debtNow=S.loans.reduce((a,l)=>a+loanRemainingNow(l),0);
+  const netNowV=S.baseCash+totalStock-debtNow;const up=upcomingEvents(30);
+  let warn=s.firstNeg?`<div class="warn-banner"><div style="font-size:18px">⚠️</div><div>
+      <div class="wt">${fmtDateK(s.firstNeg)} 잔액 마이너스 예상</div>
+      <div class="wd">이대로면 그날 현금이 <span class="mono">${won(pointAt(s.pts,s.firstNeg).cash)}</span>이 됩니다. 고정지출을 조정하거나 목돈을 준비하세요.</div></div></div>`
+    :`<div class="ok-banner"><div style="font-size:16px">✅</div><div class="wt">향후 12개월 내 현금 부족 위험 없음</div></div>`;
+  return `
+  <div class="card">
+    <div class="lbl">오늘 현금 잔액</div>
+    <div class="hero-num mono">${won(S.baseCash)}</div>
+    <div class="row" style="margin-top:8px;justify-content:space-between">
+      <div class="row" style="gap:6px">${sparkline(s.pts,"cash")}</div>
+      <div style="text-align:right"><div class="dim" style="font-size:11px">12개월 뒤 예상</div>
+        <div class="mono" style="font-weight:700;font-size:15px">${won(s.pts[s.pts.length-1].cash)}</div></div>
+    </div>
+  </div>
+  ${warn}
+  <div class="grid2" style="margin-top:12px">
+    <div class="card" style="margin-top:0"><div class="lbl">순자산</div>
+      <div class="mono" style="font-size:21px;font-weight:700;margin-top:3px">${won(netNowV)}</div>
+      <div class="dim" style="font-size:11px;margin-top:3px">현금+투자−대출</div></div>
+    <div class="card" style="margin-top:0"><div class="lbl">이번 달 순흐름</div>
+      ${(()=>{const nf=monthNetFlow();return`<div class="mono ${nf>=0?'pos':'neg'}" style="font-size:21px;font-weight:700;margin-top:3px">${wonSigned(nf)}</div><div class="dim" style="font-size:11px;margin-top:3px">수입−지출(고정)</div>`})()}</div>
+  </div>
+  <div class="grid2" style="margin-top:12px">
+    <div class="card" style="margin-top:0"><div class="lbl">투자 평가액</div>
+      <div class="mono" style="font-size:19px;font-weight:700;margin-top:3px">${won(totalStock)}</div>
+      ${(()=>{const c=S.stocks.reduce((a,x)=>a+(+x.cost||0),0);const pl=totalStock-c;
+        return `<div class="mono ${pl>=0?'pos':'neg'}" style="font-size:11.5px;margin-top:3px">${wonSigned(pl)} (${c?((pl/c*100).toFixed(1)):0}%)</div>`})()}</div>
+    <div class="card" style="margin-top:0"><div class="lbl">대출 잔액</div>
+      <div class="mono neg" style="font-size:19px;font-weight:700;margin-top:3px">${won(debtNow)}</div>
+      <div class="dim" style="font-size:11px;margin-top:3px">${S.loans.length}건</div></div>
+  </div>
+  <div class="sec-h"><h3>다가오는 30일</h3></div>
+  <div class="card pad0" style="margin-top:8px">
+    ${up.length?up.slice(0,8).map(e=>`<div class="li"><div class="ico">${catIcon(e.cat)}</div>
+      <div class="grow"><div class="nm">${esc(e.name)}</div>
+        <div class="meta">${fmtDateK(e.date)} · D-${daysBetween(S.baseDate,e.date)} · ${e.cat}</div></div>
+      <div class="amt mono ${e.amount>=0?'pos':'neg'}">${wonSigned(e.amount)}</div></div>`).join(""):`<div class="empty">예정된 항목이 없습니다.</div>`}
+  </div><div style="height:6px"></div>`;
+}
+function pointAt(pts,iso){return pts.find(p=>p.date===iso)||pts[0]}
+function monthNetFlow(){let n=0;const from=S.baseDate,to=toISO(addMonths(parseISO(from),1));
+  for(const r of S.recurring){const sign=r.kind==="income"?1:-1;for(const o of occurrences(r,from,to))if(o.date>=from&&o.date<to)n+=sign*o.amount}
+  for(const l of S.loans)for(const p of loanPayments(l,from,to))if(p.date>=from&&p.date<to)n-=p.amount;return n}
+function upcomingEvents(days){const from=S.baseDate,to=addDaysISO(from,days);const out=[];
+  for(const r of S.recurring){const sign=r.kind==="income"?1:-1;for(const o of occurrences(r,from,to))if(o.date>from&&o.date<=to)out.push({name:r.name,cat:r.cat,date:o.date,amount:sign*o.amount})}
+  for(const o of S.oneoff)if(o.date>from&&o.date<=to)out.push({name:o.name,cat:o.cat,date:o.date,amount:(o.kind==="income"?1:-1)*o.amount});
+  for(const l of S.loans)for(const p of loanPayments(l,from,to))if(p.date>from&&p.date<=to)out.push({name:l.name+" 상환",cat:"대출",date:p.date,amount:-p.amount});
+  return out.sort((a,b)=>a.date<b.date?-1:1)}
+
+/* FLOW */
+function viewFlow(){
+  const evs=upcomingEvents(90);const byDate={};evs.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e)});
+  const dates=Object.keys(byDate).sort();let bal=S.baseCash;
+  let html=`<div class="card" style="margin-top:12px"><div class="between">
+    <div><div class="lbl">시작 잔액 · ${fmtDateShort(S.baseDate)}</div>
+    <div class="mono" style="font-size:22px;font-weight:700;margin-top:2px">${won(S.baseCash)}</div></div>
+    <div class="chip accent">향후 90일</div></div></div><div style="height:8px"></div>`;
+  if(!dates.length)return html+`<div class="empty">향후 90일간 예정된 항목이 없습니다.</div>`;
+  html+=dates.map(d=>{const list=byDate[d];const dayNet=list.reduce((a,e)=>a+e.amount,0);bal+=dayNet;const dd=parseISO(d);
+    return `<div class="tl-day"><div class="tl-date"><div class="d mono">${dd.getDate()}</div><div class="m">${MON[dd.getMonth()]}</div></div>
+      <div class="tl-line"><div class="tl-dot" style="background:${dayNet>=0?'var(--pos)':'var(--neg)'}"></div></div>
+      <div class="tl-body">${list.map(e=>`<div class="tl-ev"><div class="row" style="gap:8px;min-width:0">
+        <span>${catIcon(e.cat)}</span><span class="nm" style="font-size:13.5px;font-weight:600">${esc(e.name)}</span></div>
+        <div class="mono ${e.amount>=0?'pos':'neg'}" style="font-weight:650;font-size:13.5px">${wonSigned(e.amount)}</div></div>`).join("")}
+        <div class="tl-bal mono">잔액 ${won(bal)}</div></div></div>`;}).join("");
+  return html+`<div style="height:6px"></div>`;
+}
+
+/* FORECAST */
+function viewForecast(){
+  const s=buildSeries(fc.months,{inc:fc.inc,exp:fc.exp});const last=s.pts[s.pts.length-1];const startNet=s.pts[0].net;
+  const qDate=fc.date||addDaysISO(S.baseDate,90);const q=projectTo(qDate);
+  return `
+  <div class="card">
+    <div class="between" style="margin-bottom:4px">
+      <div><div class="lbl">${fc.months}개월 뒤 예상 현금</div>
+      <div class="mono" style="font-size:26px;font-weight:700;margin-top:2px">${won(last.cash)}</div></div>
+      <div style="text-align:right"><div class="lbl">순자산</div>
+      <div class="mono ${last.net>=startNet?'pos':'neg'}" style="font-size:17px;font-weight:700;margin-top:4px">${won(last.net)}</div></div>
+    </div>
+    ${lineChart(s.pts,{keys:["cash","net"],includeZero:true,mark:s.firstNeg?{date:s.minDate}:null,h:196})}
+    <div class="legend"><span><i style="background:var(--accent)"></i>현금 잔액</span>
+      <span><i style="background:var(--gold)"></i>순자산</span>${s.firstNeg?`<span><i style="background:var(--neg)"></i>마이너스 위험</span>`:""}</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl" style="margin-bottom:8px">예측 기간</div>
+    <div class="seg">${[3,6,12,24].map(m=>`<button class="${fc.months===m?'on':''}" onclick="setFc('months',${m})">${m}개월</button>`).join("")}</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl">특정 날짜 잔고 조회</div>
+    <div class="field" style="margin:10px 0 4px"><input type="date" value="${qDate}" onchange="setFc('date',this.value)"></div>
+    <div class="between" style="margin-top:10px"><span class="muted" style="font-size:13px">${fmtDateFull(qDate)} 예상 현금</span>
+      <span class="mono ${q.cash<0?'neg':''}" style="font-weight:700;font-size:16px">${won(q.cash)}</span></div>
+    <div class="between" style="margin-top:6px"><span class="dim" style="font-size:12px">그날 순자산</span>
+      <span class="mono" style="font-weight:650;font-size:13px">${won(q.net)}</span></div>
+    <div class="row" style="gap:6px;margin-top:10px">
+      ${[["+3개월",90],["+6개월",182],["+1년",365],["+3년",1095]].map(([t,dys])=>`<button class="chip" onclick="setFc('date','${addDaysISO(S.baseDate,dys)}')" style="cursor:pointer">${t}</button>`).join("")}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="between"><div class="lbl">시나리오 시뮬레이션</div>
+      <button class="addbtn" onclick="fc.inc=0;fc.exp=0;render()">초기화</button></div>
+    <div style="margin-top:12px"><div class="between"><span style="font-size:13px;font-weight:600">매월 수입 조정</span>
+      <span class="mono ${fc.inc>=0?'pos':''}" style="font-weight:700">${fc.inc?wonSigned(fc.inc):"₩0"}</span></div>
+      <input class="slider" type="range" min="0" max="2000000" step="100000" value="${fc.inc}" oninput="setFc('inc',+this.value)"></div>
+    <div style="margin-top:14px"><div class="between"><span style="font-size:13px;font-weight:600">매월 지출 조정</span>
+      <span class="mono ${fc.exp>0?'neg':''}" style="font-weight:700">${fc.exp?"−"+won(fc.exp).slice(1):"₩0"}</span></div>
+      <input class="slider" type="range" min="0" max="2000000" step="100000" value="${fc.exp}" oninput="setFc('exp',+this.value)"></div>
+    ${(fc.inc||fc.exp)?`<div class="divider"></div>
+      <div class="between"><span class="muted" style="font-size:13px">시나리오 적용 시 ${fc.months}개월 뒤</span>
+      <span class="mono" style="font-weight:700">${won(last.cash)}</span></div>
+      <div class="between" style="margin-top:4px"><span class="dim" style="font-size:12px">기본 대비 차이</span>
+      ${(()=>{const base=buildSeries(fc.months,{}).pts.slice(-1)[0].cash;const diff=last.cash-base;
+        return `<span class="mono ${diff>=0?'pos':'neg'}" style="font-weight:700;font-size:13px">${wonSigned(diff)}</span>`})()}</div>`:""}
+  </div>
+
+  <div class="card"><div class="lbl">예측 요약</div>
+    <div class="between" style="margin-top:10px"><span class="muted" style="font-size:13px">기간 내 최저 현금</span>
+      <span class="mono ${s.minCash<0?'neg':''}" style="font-weight:650">${won(s.minCash)} <span class="dim" style="font-size:11px">(${fmtDateShort(s.minDate)})</span></span></div>
+    <div class="between" style="margin-top:8px"><span class="muted" style="font-size:13px">현금 증감</span>
+      ${(()=>{const d=last.cash-S.baseCash;return `<span class="mono ${d>=0?'pos':'neg'}" style="font-weight:650">${wonSigned(d)}</span>`})()}</div>
+    <div class="between" style="margin-top:8px"><span class="muted" style="font-size:13px">순자산 증감</span>
+      ${(()=>{const d=last.net-startNet;return `<span class="mono ${d>=0?'pos':'neg'}" style="font-weight:650">${wonSigned(d)}</span>`})()}</div>
+  </div><div style="height:6px"></div>`;
+}
+function setFc(k,v){fc[k]=v;render()}
+
+/* ASSETS */
+function viewAssets(){
+  const totalStock=totalStockValue();const totalCost=S.stocks.reduce((a,s)=>a+(+s.cost||0),0);
+  const debt=S.loans.reduce((a,l)=>a+loanRemainingNow(l),0);const net=S.baseCash+totalStock-debt;const pl=totalStock-totalCost;
+  return `
+  <div class="card"><div class="lbl">순자산</div><div class="hero-num mono">${won(net)}</div>
+    <div class="divider"></div>
+    <div class="between" style="margin-top:2px"><span class="muted" style="font-size:13px">💵 현금</span><span class="mono" style="font-weight:600">${won(S.baseCash)}</span></div>
+    <div class="between" style="margin-top:7px"><span class="muted" style="font-size:13px">📈 투자 평가액</span><span class="mono pos" style="font-weight:600">${won(totalStock)}</span></div>
+    <div class="between" style="margin-top:7px"><span class="muted" style="font-size:13px">🏦 대출 잔액</span><span class="mono neg" style="font-weight:600">−${won(debt).slice(1)}</span></div>
+  </div>
+
+  <div class="sec-h"><h3>대출</h3><button class="addbtn" onclick="openLoan()">+ 추가</button></div>
+  <div class="card pad0" style="margin-top:8px">
+    ${S.loans.length?S.loans.map(l=>{const rem=loanRemainingNow(l);const paid=1-rem/l.principal;
+      return `<div class="li tap" onclick="openLoan('${l.id}')"><div class="ico">🏦</div>
+        <div class="grow"><div class="nm">${esc(l.name)}</div>
+          <div class="meta">월 ${won(l.payment)} · ${l.rate}% · ${l.day}일 · ${estPayoff(l)}</div>
+          <div class="barwrap"><div class="bar" style="width:${(paid*100).toFixed(0)}%"></div></div></div>
+        <div style="text-align:right"><div class="amt mono neg">${won(rem)}</div><div class="meta">/ ${manLabel(l.principal)}</div></div></div>`}).join(""):`<div class="empty">등록된 대출이 없습니다.</div>`}
+  </div>
+
+  <div class="sec-h"><h3>투자</h3><button class="addbtn" onclick="openStock()">+ 추가</button></div>
+  <div class="card pad0" style="margin-top:8px">
+    ${S.stocks.length?S.stocks.map(s=>{const val=stockValue(s);const pl=val-(+s.cost||0);const pct=s.cost?(pl/s.cost*100):0;
+      const manual=(s.actual!==""&&s.actual!==undefined&&s.actual!==null);
+      return `<div class="li tap" onclick="openStock('${s.id}')"><div class="ico">📈</div>
+        <div class="grow"><div class="nm">${esc(s.name)} ${manual?'<span class="chip" style="font-size:9.5px;padding:1px 6px">실측</span>':'<span class="chip accent" style="font-size:9.5px;padding:1px 6px">목표 '+s.target+'%</span>'}</div>
+          <div class="meta">투입 ${won(s.cost)}</div></div>
+        <div style="text-align:right"><div class="amt mono">${won(val)}</div>
+          <div class="meta mono ${pl>=0?'pos':'neg'}">${wonSigned(pl)} (${pct.toFixed(1)}%)</div></div></div>`}).join(""):`<div class="empty">등록된 투자가 없습니다.</div>`}
+  </div>
+  ${S.stocks.length?`<div class="card"><div class="between"><span class="muted" style="font-size:13px">총 투입 대비 평가손익</span>
+    <span class="mono ${pl>=0?'pos':'neg'}" style="font-weight:700">${wonSigned(pl)} (${totalCost?(pl/totalCost*100).toFixed(1):0}%)</span></div>
+    <div class="hint" style="font-size:11.5px;color:var(--ink-3);margin-top:6px">평가액은 '목표수익률 자동계산'이 기본이며, 실제와 차이나면 항목을 눌러 '현재 평가액'에 실제 금액을 넣어 보정하세요.</div></div>`:""}
+  <div style="height:6px"></div>`;
+}
+function estPayoff(l){if(l.rate>0&&l.payment<=l.principal*(l.rate/100/12))return "상환액 부족";
+  let i=0;while(i<600){const iso=toISO(addMonths(parseISO(l.start),i));if(loanRemainingAt(l,iso)<=0){const d=parseISO(iso);return d.getFullYear()+"."+(d.getMonth()+1)+" 완납"}i++}return "장기"}
+
+/* ESTATE — 부동산 예상차익 */
+function profitShareRate(ltv,year){
+  if(ltv===50){if(year<=9)return 20;if(year===10)return 18;if(year===11)return 16;if(year===12)return 14;if(year===13)return 12;return 10}
+  if(ltv===40){if(year<=9)return 15;if(year===10)return 13;return 10}
+  return 10;
+}
+function amortCum(P,annualRate,termYears,months){
+  const i=annualRate/100/12,n=termYears*12,t=Math.min(months,n);
+  if(i===0){const princ=Math.min(P/n*t,P);return{principal:princ,interest:0}}
+  const pow=Math.pow(1+i,n),M=P*i*pow/(pow-1);let bal=P,cumP=0,cumI=0;
+  for(let k=0;k<t;k++){const interest=bal*i;let princ=M-interest;if(princ>bal)princ=bal;bal-=princ;cumP+=princ;cumI+=interest;if(bal<=0)break}
+  return{principal:cumP,interest:cumI,payment:M};
+}
+function estateCalc(){
+  const r=S.realestate;const year=Math.max(1,Math.min(30,r.sellYear-r.baseYear+1));
+  const share=profitShareRate(r.ltv,year);
+  const loanPrincipal=Math.round(r.ltv/100*r.loanBase);
+  const equity=r.acquire-loanPrincipal;
+  const months=year*12;
+  const am=amortCum(loanPrincipal,r.rate,r.term,months);
+  const balance=Math.max(0,loanPrincipal-am.principal);
+  const profit=r.salePrice-r.acquire;const shareAmt=Math.max(0,profit)*share/100;
+  const realize=r.salePrice-balance-shareAmt;
+  const grossGain=realize-equity;
+  const netProfit=realize-equity-am.principal-am.interest;
+  return{year,share,loanPrincipal,equity,cumP:am.principal,cumI:am.interest,balance,profit,shareAmt,realize,grossGain,netProfit};
+}
+function reSet(k,val){S.realestate[k]=val;save();render()}
+function viewEstate(){
+  const r=S.realestate,c=estateCalc();
+  const years=[];for(let y=r.baseYear;y<=r.baseYear+29;y++)years.push(y);
+  const rows=[["1~9",1],["10",10],["11",11],["12",12],["13",13],["14~30",14]];
+  const rowHit=y=>y<=9?"1~9":y>=14?"14~30":String(y);
+  const tbl=`<table class="stbl"><thead><tr><th>사용<br>기간</th><th>50%</th><th>40%</th><th>30%</th></tr></thead><tbody>
+    ${rows.map(([lab,yy])=>`<tr><td class="yr">${lab}</td>
+      ${[50,40,30].map(l=>{const on=(l===r.ltv&&rowHit(c.year)===lab);
+        return `<td class="${on?'hit':(l===r.ltv?'colon':'')}">${profitShareRate(l,yy)}%</td>`}).join("")}</tr>`).join("")}
+  </tbody></table>`;
+  return `
+  <div class="card" style="background:linear-gradient(160deg,var(--surface),var(--gold-soft))">
+    <div class="lbl" style="color:var(--gold)">매각 시 최종 순수익 (투입금·이자 제외 후)</div>
+    <div class="hero-num mono ${c.netProfit>=0?'':'neg'}">${wonSigned(c.netProfit)}</div>
+    <div class="dim" style="font-size:12px;margin-top:4px">${r.sellYear}년 매각 · 사용 ${c.year}년차 · 이익공유율 ${c.share}% · LTV ${r.ltv}%</div>
+    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+      <span class="chip accent">실수령 ${eok(c.realize)}</span>
+      <span class="chip">자기자본 ${eok(c.equity)}</span>
+      <span class="chip">누적이자 ${eok(c.cumI)}</span>
+      <span class="chip warn">이익공유 ${eok(c.shareAmt)}</span>
+    </div>
+  </div>
+
+  <div class="sec-h"><h3>조건 변수 <span class="dim" style="font-weight:400;font-size:12px">· 수정 시 자동 저장</span></h3></div>
+  <div class="card">
+    <div class="lbl" style="margin-bottom:8px">담보인정비율(LTV) · 대출원금·이익공유율 결정</div>
+    <div class="seg">${[30,40,50].map(l=>`<button class="${r.ltv===l?'on':''}" onclick="reSet('ltv',${l})">${l}%</button>`).join("")}</div>
+    <div class="inrow" style="margin-top:12px"><label>매각 연도 <small style="color:var(--ink-3)">${r.baseYear}=1년차</small></label>
+      <select onchange="reSet('sellYear',+this.value)">${years.map(y=>`<option value="${y}" ${y===r.sellYear?'selected':''}>${y}년 (${y-r.baseYear+1}년차)</option>`).join("")}</select></div>
+    <div class="inrow"><label>매도금액 <small style="color:var(--ink-3)">억원 단위 · 소수점 가능</small></label><input type="number" step="0.01" inputmode="decimal" value="${+(r.salePrice/100000000).toFixed(4)}" onchange="reSet('salePrice',Math.round((+this.value||0)*100000000))"></div>
+  </div>
+
+  <div class="sec-h"><h3>취득·대출 정보</h3></div>
+  <div class="card">
+    <div class="inrow"><label>취득가액 <small style="color:var(--ink-3)">실제 매입가</small></label><input type="number" inputmode="numeric" value="${r.acquire}" onchange="reSet('acquire',+this.value||0)"></div>
+    <div class="inrow"><label>대출 기준가 <small style="color:var(--ink-3)">LTV 적용 기준</small></label><input type="number" inputmode="numeric" value="${r.loanBase}" onchange="reSet('loanBase',+this.value||0)"></div>
+    <div class="inrow"><label>대출 연금리(%)</label><input type="number" step="0.1" value="${r.rate}" onchange="reSet('rate',+this.value||0)"></div>
+    <div class="inrow"><label>대출 기간(년)</label><input type="number" value="${r.term}" onchange="reSet('term',+this.value||30)"></div>
+    <div class="divider"></div>
+    <div class="resrow"><span class="rk">대출원금 <small>대출 기준가 × LTV ${r.ltv}%</small></span><span class="rv mono">${won(c.loanPrincipal)}</span></div>
+    <div class="resrow"><span class="rk">자기자본(실투자금) <small>취득가액 − 대출원금 · 부대비용 미포함</small></span><span class="rv mono">${won(c.equity)}</span></div>
+  </div>
+
+  <div class="sec-h"><h3>정산 결과</h3></div>
+  <div class="card">
+    <div class="resrow"><span class="rk">누적 상환이자 <small>${r.rate}%·원리금균등, ${c.year}년차까지</small></span><span class="rv mono">${won(c.cumI)}</span></div>
+    <div class="resrow"><span class="rk">누적 원금상환액 <small>${c.year}년차까지</small></span><span class="rv mono">${won(c.cumP)}</span></div>
+    <div class="resrow" style="border-top:1px solid var(--line);padding-top:12px"><span class="rk">대출잔여원금 <small>대출원금 − 누적 원금상환액</small></span><span class="rv mono neg">${won(c.balance)}</span></div>
+    <div class="divider"></div>
+    <div class="resrow"><span class="rk">매도금액</span><span class="rv mono">${won(r.salePrice)}</span></div>
+    <div class="resrow"><span class="rk">양도차익 <small>매도금액 − 취득가액</small></span><span class="rv mono ${c.profit>=0?'pos':'neg'}">${won(c.profit)}</span></div>
+    <div class="resrow"><span class="rk">이익공유 환수금 <small>양도차익 × ${c.share}%</small></span><span class="rv mono" style="color:var(--warn)">−${won(c.shareAmt).slice(1)}</span></div>
+    <div class="resrow" style="border-top:1px solid var(--line);padding-top:12px"><span class="rk">매도 실수령액 <small>매도 − 대출잔여원금 − 이익공유 (순자본)</small></span><span class="rv mono" style="font-size:16px">${won(c.realize)}</span></div>
+    <div class="resrow"><span class="rk">자기자본 제외 <small>초기 투입금</small></span><span class="rv mono" style="color:var(--warn)">−${won(c.equity).slice(1)}</span></div>
+    <div class="resrow"><span class="rk">누적 원금상환 제외 <small>${c.year}년간 갚은 원금</small></span><span class="rv mono" style="color:var(--warn)">−${won(c.cumP).slice(1)}</span></div>
+    <div class="resrow"><span class="rk">누적 이자 제외 <small>${c.year}년간 낸 이자</small></span><span class="rv mono" style="color:var(--warn)">−${won(c.cumI).slice(1)}</span></div>
+    <div class="resrow" style="border-top:1px solid var(--line);padding-top:12px"><span class="rk" style="font-weight:700">최종 순수익 <small>실수령액 − 자기자본 − 원금 − 이자</small></span><span class="rv mono ${c.netProfit>=0?'pos':'neg'}" style="font-size:18px;font-weight:800">${wonSigned(c.netProfit)}</span></div>
+  </div>
+
+  <div class="sec-h"><h3>이익공유율 표</h3></div>
+  <div class="card"><div class="dim" style="font-size:11.5px">국가모기지(주택담보장기대출) 정산표 · 자녀 2인 기준. 노란 칸이 현재 조건.</div>${tbl}</div>
+  <div style="height:6px"></div>`;
+}
+
+/* SETTINGS */
+function viewSettings(){
+  const recInc=S.recurring.filter(r=>r.kind==="income");const recExp=S.recurring.filter(r=>r.kind==="expense");
+  const future=S.oneoff.filter(o=>o.date>=S.baseDate).sort((a,b)=>a.date<b.date?-1:1);
+  return `
+  <div class="card"><div class="between"><div><div class="lbl">기준 현금 잔액</div>
+    <div class="mono" style="font-size:24px;font-weight:700;margin-top:2px">${won(S.baseCash)}</div>
+    <div class="dim" style="font-size:11.5px;margin-top:2px">기준일 ${fmtDateK(S.baseDate)}</div></div>
+    <button class="addbtn" onclick="openBase()">수정</button></div>
+    <div class="hint" style="font-size:11.5px;color:var(--ink-3);margin-top:8px">실제 통장과 차이가 나면 여기서 실제 잔액으로 맞춰주세요. 모든 예측의 출발점입니다.</div></div>
+
+  <div class="sec-h"><h3>고정 수입</h3><button class="addbtn" onclick="openRec('income')">+ 추가</button></div>
+  <div class="card pad0" style="margin-top:8px">${recInc.length?recInc.map(recRow).join(""):emptyRow("고정 수입")}</div>
+
+  <div class="sec-h"><h3>고정 지출 · 자동이체</h3><button class="addbtn" onclick="openRec('expense')">+ 추가</button></div>
+  <div class="card pad0" style="margin-top:8px">${recExp.length?recExp.map(recRow).join(""):emptyRow("고정 지출")}</div>
+
+  <div class="sec-h"><h3>단발성 항목</h3><button class="addbtn" onclick="openOne()">+ 추가</button></div>
+  <div class="card pad0" style="margin-top:8px">${future.length?future.map(o=>`<div class="li tap" onclick="openOne('${o.id}')">
+    <div class="ico">${catIcon(o.cat)}</div><div class="grow"><div class="nm">${esc(o.name)}</div>
+      <div class="meta">${fmtDateK(o.date)} · ${o.cat}</div></div>
+    <div class="amt mono ${o.kind==='income'?'pos':'neg'}">${wonSigned(o.kind==='income'?o.amount:-o.amount)}</div></div>`).join(""):emptyRow("단발성 항목")}</div>
+
+  <div class="sec-h"><h3>데이터</h3></div>
+  <div class="card"><button class="btn ghost" onclick="exportData()">데이터 내보내기 (JSON)</button>
+    <button class="btn danger" onclick="resetAll()">전체 초기화</button></div>
+  <div class="empty" style="padding-top:16px">머니플로우 · 로컬 저장 · 이 기기에만 보관됩니다</div><div style="height:6px"></div>`;
+}
+function recRow(r){const amt=r.segs[r.segs.length-1].amount;
+  const freqTxt={monthly:"매월 "+r.day+"일",biweekly:"격주",quarterly:"분기 "+r.day+"일",yearly:(r.month||1)+"월 "+r.day+"일"}[r.freq];
+  const seg=r.segs.length>1?`<span class="chip accent" style="margin-left:6px;font-size:10px;padding:1px 6px">시제 ${r.segs.length}</span>`:"";
+  const auto=r.bank?`<span class="chip" style="margin-left:5px;font-size:9.5px;padding:1px 6px">🔄 ${esc(r.bank)}</span>`:"";
+  const end=r.end!=="2100-01-01"?` · ~${fmtDateShort(r.end)}`:"";
+  const acct=r.account?` · ${esc(r.account)}`:"";
+  return `<div class="li tap" onclick="openRec('${r.kind}','${r.id}')"><div class="ico">${catIcon(r.cat)}</div>
+    <div class="grow"><div class="nm">${esc(r.name)}${seg}${auto}</div>
+      <div class="meta">${freqTxt} · ${r.cat}${acct}${end}</div></div>
+    <div class="amt mono ${r.kind==='income'?'pos':'neg'}">${wonSigned(r.kind==='income'?amt:-amt)}</div></div>`}
+function emptyRow(w){return `<div class="empty">${w}을 추가해보세요.</div>`}
+
+/* SHEETS */
+const scrim=document.getElementById("scrim"),sheet=document.getElementById("sheet");
+scrim.addEventListener("click",e=>{if(e.target===scrim)closeSheet()});
+function openSheet(html){sheet.innerHTML='<div class="grab"></div>'+html;scrim.classList.add("open")}
+function closeSheet(){scrim.classList.remove("open")}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+let CAT_SEL="",KIND_SEL="";
+const CATS=["급여","주거","생활","구독","통신","교통","보험","세금","의료","교육","모임","저축","기타"];
+
+function openBase(){openSheet(`<h2>기준 잔액 수정</h2>
+  <div class="field"><label>현재 실제 현금 잔액 (원)</label><input id="f_cash" class="mono" type="number" value="${S.baseCash}" inputmode="numeric"></div>
+  <div class="field"><label>기준일</label><input id="f_date" type="date" value="${S.baseDate}"></div>
+  <button class="btn" onclick="saveBase()">저장</button><button class="btn ghost" onclick="closeSheet()">취소</button>`)}
+function saveBase(){S.baseCash=+v("f_cash")||0;S.baseDate=v("f_date")||S.baseDate;save();closeSheet();render();toast("기준 잔액 저장됨")}
+
+function openRec(kind,rid){
+  const r=rid?S.recurring.find(x=>x.id===rid):null;
+  KIND_SEL=r?r.kind:kind;CAT_SEL=r?r.cat:(kind==="income"?"급여":"생활");
+  const amt=r?r.segs[r.segs.length-1].amount:"";
+  openSheet(`<h2>${r?"고정 항목 수정":(kind==="income"?"고정 수입 추가":"고정 지출 추가")}</h2>
+    <div class="field"><div class="kindtog" id="kt">
+      <button type="button" class="${KIND_SEL==='income'?'on-pos':''}" onclick="setKind('income')">수입</button>
+      <button type="button" class="${KIND_SEL==='expense'?'on-neg':''}" onclick="setKind('expense')">지출</button></div></div>
+    <div class="field"><label>이름</label><input id="f_name" value="${r?esc(r.name):''}" placeholder="예: 월급, 월세, 보험료"></div>
+    <div class="f2">
+      <div class="field"><label>금액 (원)</label><input id="f_amt" class="mono" type="number" inputmode="numeric" value="${amt}"></div>
+      <div class="field"><label>주기</label><select id="f_freq" onchange="freqChange()">
+        <option value="monthly">매월</option><option value="biweekly">격주(2주)</option>
+        <option value="quarterly">분기</option><option value="yearly">매년</option></select></div>
+    </div>
+    <div class="f2" id="dayrow">
+      <div class="field" id="monthCell" style="display:none"><label>월</label>
+        <select id="f_month">${MON.map((m,i)=>`<option value="${i+1}">${m}</option>`).join("")}</select></div>
+      <div class="field" id="dayCell"><label id="dayLbl">이체일(며칠)</label><input id="f_day" type="number" min="1" max="31" value="${r?r.day:1}"></div>
+    </div>
+    <div class="field"><label>카테고리</label><div class="catrow" id="catrow">
+      ${CATS.map(c=>`<button type="button" class="${CAT_SEL===c?'on':''}" onclick="setCat('${c}')">${c}</button>`).join("")}</div></div>
+    <div class="f2">
+      <div class="field"><label>자동이체 은행/메모</label><input id="f_bank" value="${r?esc(r.bank||''):''}" placeholder="예: 신한 자동이체"></div>
+      <div class="field"><label>계좌번호</label><input id="f_acct" value="${r?esc(r.account||''):''}" placeholder="예: 110-***-4567"></div>
+    </div>
+    <div class="f2">
+      <div class="field"><label>시작일</label><input id="f_start" type="date" value="${r?r.start:S.baseDate}"></div>
+      <div class="field"><label>종료일</label><input id="f_end" type="date" value="${r?r.end:'2100-01-01'}"><div class="hint">기본 2100-01-01 (무기한)</div></div>
+    </div>
+    ${r?segEditor(r):""}
+    <button class="btn" onclick="saveRec('${rid||''}')">${r?"저장":"추가"}</button>
+    ${r?`<button class="btn danger" onclick="delRec('${rid}')">삭제</button>`:""}
+    <button class="btn ghost" onclick="closeSheet()">취소</button>`);
+  document.getElementById("f_freq").value=r?r.freq:"monthly";
+  if(r&&r.freq==="yearly")document.getElementById("f_month").value=r.month||1;
+  freqChange();
+}
+function segEditor(r){return `<div class="field" style="margin-top:4px"><label>시제 변경 (금액 변경 이력 · 과거 보존)</label>
+  <div style="background:var(--surface-2);border-radius:11px;padding:4px 12px">
+  ${r.segs.map((s,i)=>`<div class="between" style="padding:8px 0;border-bottom:${i<r.segs.length-1?'1px solid var(--line)':'none'}">
+    <span style="font-size:12.5px">${i===0?'시작':fmtDateShort(s.from)+'부터'}</span>
+    <span class="mono" style="font-weight:600">${won(s.amount)}${i>0?`<button onclick="delSeg('${r.id}',${i})" style="color:var(--neg);margin-left:8px;font-size:12px">✕</button>`:""}</span></div>`).join("")}
+  </div>
+  <div class="f2" style="margin-top:8px"><input id="seg_date" type="date" value="${addDaysISO(S.baseDate,30)}"><input id="seg_amt" class="mono" type="number" inputmode="numeric" placeholder="새 금액"></div>
+  <button class="btn ghost" style="margin-top:8px;padding:11px" onclick="addSeg('${r.id}')">＋ 이 날짜부터 금액 변경 추가</button>
+  <div class="hint">예: 월세가 내년 1월부터 오를 때 → 날짜와 새 금액 입력. 과거는 보존되고 미래만 바뀝니다.</div></div>`}
+function freqChange(){const f=document.getElementById("f_freq").value;
+  document.getElementById("monthCell").style.display=(f==="yearly")?"block":"none";
+  document.getElementById("dayCell").style.display=(f==="biweekly")?"none":"block";}
+function setKind(k){KIND_SEL=k;document.querySelectorAll("#kt button").forEach((b,i)=>{b.className=(i===0&&k==="income")?"on-pos":(i===1&&k==="expense")?"on-neg":""})}
+function setCat(c){CAT_SEL=c;document.querySelectorAll("#catrow button").forEach(b=>b.classList.toggle("on",b.textContent===c))}
+function saveRec(rid){const name=v("f_name").trim(),amt=+v("f_amt")||0,freq=v("f_freq");
+  if(!name){toast("이름을 입력하세요");return}if(!amt){toast("금액을 입력하세요");return}
+  const start=v("f_start")||S.baseDate,end=v("f_end")||"2100-01-01";const day=freq==="biweekly"?1:(+v("f_day")||1);
+  const obj={kind:KIND_SEL,name,cat:CAT_SEL,freq,day,start,end,bank:v("f_bank").trim(),account:v("f_acct").trim()};
+  if(freq==="yearly")obj.month=+v("f_month")||1;
+  if(rid){const r=S.recurring.find(x=>x.id===rid);Object.assign(r,obj);r.segs[r.segs.length-1].amount=amt;if(r.segs.length===1)r.segs[0].from=start;}
+  else S.recurring.push({id:id(),...obj,segs:[{from:start,amount:amt}]});
+  save();closeSheet();render();toast("저장됨")}
+function delRec(rid){S.recurring=S.recurring.filter(x=>x.id!==rid);save();closeSheet();render();toast("삭제됨")}
+function addSeg(rid){const d=v("seg_date"),a=+v("seg_amt");if(!a){toast("새 금액을 입력하세요");return}
+  const r=S.recurring.find(x=>x.id===rid);r.segs.push({from:d,amount:a});r.segs.sort((x,y)=>x.from<y.from?-1:1);save();openRec(r.kind,rid);toast("시제 변경 추가됨")}
+function delSeg(rid,i){const r=S.recurring.find(x=>x.id===rid);r.segs.splice(i,1);save();openRec(r.kind,rid)}
+
+function openOne(oid){const o=oid?S.oneoff.find(x=>x.id===oid):null;
+  KIND_SEL=o?o.kind:"expense";CAT_SEL=o?o.cat:"기타";
+  openSheet(`<h2>${o?"단발성 항목 수정":"단발성 항목 추가"}</h2>
+    <div class="field"><div class="kindtog" id="kt">
+      <button type="button" class="${KIND_SEL==='income'?'on-pos':''}" onclick="setKind('income')">수입</button>
+      <button type="button" class="${KIND_SEL==='expense'?'on-neg':''}" onclick="setKind('expense')">지출</button></div></div>
+    <div class="field"><label>이름</label><input id="f_name" value="${o?esc(o.name):''}" placeholder="예: 성과급, 병원비"></div>
+    <div class="f2"><div class="field"><label>금액 (원)</label><input id="f_amt" class="mono" type="number" inputmode="numeric" value="${o?o.amount:''}"></div>
+      <div class="field"><label>날짜</label><input id="f_date" type="date" value="${o?o.date:addDaysISO(S.baseDate,7)}"></div></div>
+    <div class="field"><label>카테고리</label><div class="catrow" id="catrow">
+      ${CATS.map(c=>`<button type="button" class="${CAT_SEL===c?'on':''}" onclick="setCat('${c}')">${c}</button>`).join("")}</div></div>
+    <button class="btn" onclick="saveOne('${oid||''}')">${o?"저장":"추가"}</button>
+    ${o?`<button class="btn danger" onclick="delOne('${oid}')">삭제</button>`:""}<button class="btn ghost" onclick="closeSheet()">취소</button>`)}
+function saveOne(oid){const name=v("f_name").trim(),amt=+v("f_amt")||0,date=v("f_date");
+  if(!name){toast("이름을 입력하세요");return}if(!amt){toast("금액을 입력하세요");return}
+  const obj={kind:KIND_SEL,name,cat:CAT_SEL,amount:amt,date};
+  if(oid)Object.assign(S.oneoff.find(x=>x.id===oid),obj);else S.oneoff.push({id:id(),...obj});
+  save();closeSheet();render();toast("저장됨")}
+function delOne(oid){S.oneoff=S.oneoff.filter(x=>x.id!==oid);save();closeSheet();render();toast("삭제됨")}
+
+function openLoan(lid){const l=lid?S.loans.find(x=>x.id===lid):null;
+  openSheet(`<h2>${l?"대출 수정":"대출 추가"}</h2>
+    <div class="field"><label>대출명</label><input id="f_name" value="${l?esc(l.name):''}" placeholder="예: 주택담보대출"></div>
+    <div class="f2"><div class="field"><label>대출 원금 (원)</label><input id="f_prin" class="mono" type="number" inputmode="numeric" value="${l?l.principal:''}"></div>
+      <div class="field"><label>연 금리 (%)</label><input id="f_rate" class="mono" type="number" step="0.1" value="${l?l.rate:''}"></div></div>
+    <div class="f2"><div class="field"><label>월 상환액 (원)</label><input id="f_pay" class="mono" type="number" inputmode="numeric" value="${l?l.payment:''}"></div>
+      <div class="field"><label>상환일</label><input id="f_day" type="number" min="1" max="31" value="${l?l.day:10}"></div></div>
+    <div class="f2"><div class="field"><label>시작일</label><input id="f_start" type="date" value="${l?l.start:S.baseDate}"></div>
+      <div class="field"><label>종료일(완납예정)</label><input id="f_end" type="date" value="${l?l.end:'2100-01-01'}"><div class="hint">모르면 그대로 두세요.</div></div></div>
+    <button class="btn" onclick="saveLoan('${lid||''}')">${l?"저장":"추가"}</button>
+    ${l?`<button class="btn danger" onclick="delLoan('${lid}')">삭제</button>`:""}<button class="btn ghost" onclick="closeSheet()">취소</button>`)}
+function saveLoan(lid){const name=v("f_name").trim();if(!name){toast("대출명을 입력하세요");return}
+  const obj={name,principal:+v("f_prin")||0,rate:+v("f_rate")||0,payment:+v("f_pay")||0,day:+v("f_day")||10,start:v("f_start")||S.baseDate,end:v("f_end")||"2100-01-01"};
+  if(lid)Object.assign(S.loans.find(x=>x.id===lid),obj);else S.loans.push({id:id(),...obj});
+  save();closeSheet();render();toast("저장됨")}
+function delLoan(lid){S.loans=S.loans.filter(x=>x.id!==lid);save();closeSheet();render();toast("삭제됨")}
+
+function openStock(sid){const s=sid?S.stocks.find(x=>x.id===sid):null;
+  openSheet(`<h2>${s?"투자 수정":"투자 추가"}</h2>
+    <div class="field"><label>종목/계좌명</label><input id="f_name" value="${s?esc(s.name):''}" placeholder="예: 국내 ETF, 연금저축"></div>
+    <div class="f2"><div class="field"><label>총 투입금 (원)</label><input id="f_cost" class="mono" type="number" inputmode="numeric" value="${s?s.cost:''}"></div>
+      <div class="field"><label>목표 수익률 (%)</label><input id="f_target" class="mono" type="number" step="0.5" value="${s?s.target:''}" placeholder="예: 12"></div></div>
+    <div class="field"><label>현재 평가액 (원) · 선택</label><input id="f_actual" class="mono" type="number" inputmode="numeric" value="${s&&s.actual!==''?s.actual:''}" placeholder="비우면 목표수익률로 자동계산">
+      <div class="hint">비워두면 <b>투입금 × (1+목표수익률)</b>로 자동계산됩니다. 실제와 갭이 생기면 여기에 실제 평가액을 넣어 수동 보정하세요.</div></div>
+    <div class="field"><label>매수일 (선택)</label><input id="f_date" type="date" value="${s?s.date:S.baseDate}"></div>
+    <button class="btn" onclick="saveStock('${sid||''}')">${s?"저장":"추가"}</button>
+    ${s?`<button class="btn danger" onclick="delStock('${sid}')">삭제</button>`:""}<button class="btn ghost" onclick="closeSheet()">취소</button>`)}
+function saveStock(sid){const name=v("f_name").trim();if(!name){toast("종목명을 입력하세요");return}
+  const av=v("f_actual").trim();
+  const obj={name,cost:+v("f_cost")||0,target:+v("f_target")||0,actual:av===""?"":(+av||0),date:v("f_date")||S.baseDate};
+  if(sid)Object.assign(S.stocks.find(x=>x.id===sid),obj);else S.stocks.push({id:id(),...obj});
+  save();closeSheet();render();toast("저장됨")}
+function delStock(sid){S.stocks=S.stocks.filter(x=>x.id!==sid);save();closeSheet();render();toast("삭제됨")}
+
+function exportData(){const blob=new Blob([JSON.stringify(S,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="moneyflow-backup.json";a.click();toast("내보내기 완료")}
+function resetAll(){if(confirm("모든 데이터를 삭제하고 예시 데이터로 초기화할까요?")){S=defaultState();save();render();toast("초기화됨")}}
+
+function v(id){const e=document.getElementById(id);return e?e.value:""}
+let toastT;function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),1600)}
+
+render();
+
+/* ===== PWA + Supabase 동기화 (공유코드 방식) ===== */
+var CFG_KEY="moneyflow.cfg";
+var CFG=null; try{CFG=JSON.parse(localStorage.getItem(CFG_KEY)||"null");}catch(e){}
+var sb=null, localRev=+(localStorage.getItem("moneyflow.rev")||0), pushT=null, applying=false;
+function cfgSave(){localStorage.setItem(CFG_KEY,JSON.stringify(CFG));}
+function initSb(){ if(CFG&&CFG.url&&CFG.key&&window.supabase){ try{ sb=window.supabase.createClient(CFG.url,CFG.key); }catch(e){ console.warn(e); } } }
+function syncDotSet(txt,cls){ var e=document.getElementById("syncDot"); if(e){ e.textContent=txt; e.className="syncdot "+(cls||""); } }
+function ensureDot(){ var tb=document.getElementById("topbar"); if(tb&&!document.getElementById("syncDot")){ var b=document.createElement("button"); b.id="syncDot"; b.className="syncdot"; b.textContent="로컬"; b.onclick=openSyncSheet; tb.appendChild(b); } }
+async function cloudPull(){ if(!sb)return null; try{ var r=await sb.from("households").select("data,rev,pass").eq("code",CFG.code).maybeSingle(); if(r.error){ console.warn(r.error); return null; } return r.data; }catch(e){ console.warn(e); return null; } }
+async function cloudPush(){ if(!sb)return; localRev++; localStorage.setItem("moneyflow.rev",localRev); syncDotSet("동기화 중","saving"); try{ var r=await sb.from("households").upsert({code:CFG.code,pass:CFG.pass,data:S,rev:localRev,updated_at:new Date().toISOString()},{onConflict:"code"}); if(r.error){ syncDotSet("실패","err"); console.warn(r.error); } else { syncDotSet("동기화됨","ok"); } }catch(e){ syncDotSet("실패","err"); console.warn(e); } }
+function schedulePush(){ if(!sb)return; clearTimeout(pushT); pushT=setTimeout(cloudPush,700); }
+function subscribeRT(){ if(!sb)return; try{ sb.channel("hh-"+CFG.code).on("postgres_changes",{event:"*",schema:"public",table:"households",filter:"code=eq."+CFG.code},function(p){ var row=p.new; if(!row||row.rev<=localRev)return; applying=true; S=migrate(row.data); localRev=row.rev; localStorage.setItem("moneyflow.rev",localRev); localStorage.setItem(KEY,JSON.stringify(S)); render(); ensureDot(); applying=false; syncDotSet("동기화됨","ok"); toast("다른 기기에서 업데이트됨"); }).subscribe(); }catch(e){ console.warn(e); } }
+function randCode(){ var s="HH-", a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789", i; for(i=0;i<16;i++){ s+=a[Math.floor(Math.random()*a.length)]; if(i===7)s+="-"; } return s; }
+function gv(id){ var e=document.getElementById(id); return e?e.value.trim():""; }
+function GATE_HTML(){ return `
+  <div style="max-width:480px;margin:0 auto;padding:30px 18px 44px;min-height:100%">
+    <div style="text-align:center;margin:14px 0 22px">
+      <div style="font-size:42px">💸</div>
+      <h1 style="font-size:24px;margin-top:6px">머니플로우</h1>
+      <div class="dim" style="font-size:13px;margin-top:4px">두 기기에서 같은 가계를 함께 봅니다</div>
+    </div>
+    <div class="card" style="margin-top:0">
+      <div class="lbl" style="margin-bottom:10px">1. Supabase 연결 정보</div>
+      <div class="field"><label>Project URL</label><input id="g_url" placeholder="https://xxxx.supabase.co" value="${CFG&&CFG.url?esc(CFG.url):''}"></div>
+      <div class="field"><label>anon public key</label><input id="g_key" placeholder="eyJhbGciOi..." value="${CFG&&CFG.key?esc(CFG.key):''}"></div>
+      <div class="hint">Supabase 프로젝트 → Settings → API 에서 복사. 두 폰에 같은 값을 넣습니다.</div>
+    </div>
+    <div class="card">
+      <div class="lbl" style="margin-bottom:10px">2. 가구 연결</div>
+      <div class="seg" id="gateSeg">
+        <button data-m="new" class="on" onclick="gateMode('new')">새 가구 만들기</button>
+        <button data-m="join" onclick="gateMode('join')">기존 가구 연결</button>
+      </div>
+      <div id="gm_new" style="margin-top:14px">
+        <div class="field"><label>가구 코드 (자동 생성됨)</label>
+          <div class="row" style="gap:8px"><input id="gn_code" class="mono" value="${randCode()}"><button class="btn ghost" style="width:auto;margin:0;padding:12px 15px;flex:none" onclick="document.getElementById('gn_code').value=randCode()">↻</button></div></div>
+        <div class="field"><label>패스코드 (배우자와 공유)</label><input id="gn_pass" placeholder="예: 우리집사랑"></div>
+        <button class="btn" onclick="doCreate()">이 기기 데이터로 가구 만들기</button>
+        <div class="hint">지금 이 폰의 데이터가 클라우드에 저장됩니다. 배우자 폰에서는 이 코드로 '기존 가구 연결'을 하세요.</div>
+      </div>
+      <div id="gm_join" style="margin-top:14px;display:none">
+        <div class="field"><label>가구 코드</label><input id="gj_code" class="mono" placeholder="HH-XXXXXXXX-XXXXXXXX"></div>
+        <div class="field"><label>패스코드</label><input id="gj_pass"></div>
+        <button class="btn" onclick="doJoin()">가구 연결하고 불러오기</button>
+        <div class="hint">배우자가 만든 가구 코드와 패스코드를 입력하면 같은 데이터를 봅니다.</div>
+      </div>
+    </div>
+    <div class="empty">데이터는 Supabase에 저장되고, 각 기기에도 백업됩니다.</div>
+  </div>`; }
+function gate(){ var g=document.getElementById("gateEl"); if(g)g.remove(); var el=document.createElement("div"); el.id="gateEl"; el.className="gate"; el.innerHTML=GATE_HTML(); document.body.appendChild(el); }
+function gateClose(){ var g=document.getElementById("gateEl"); if(g)g.remove(); }
+function gateMode(m){ var n=document.getElementById("gm_new"), j=document.getElementById("gm_join"); if(n)n.style.display=(m==="new")?"block":"none"; if(j)j.style.display=(m==="join")?"block":"none"; var bs=document.querySelectorAll("#gateSeg button"); bs.forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-m")===m); }); }
+async function doCreate(){ var url=gv("g_url"), key=gv("g_key"), code=gv("gn_code"), pass=gv("gn_pass"); if(!url||!key){ alert("Supabase URL과 anon key를 입력하세요."); return; } if(!code){ alert("가구 코드를 생성하세요."); return; } CFG={url:url,key:key,code:code,pass:pass}; cfgSave(); initSb(); if(!sb){ alert("Supabase 연결 실패. URL/key를 확인하세요."); return; } await cloudPush(); subscribeRT(); gateClose(); ensureDot(); syncDotSet("동기화됨","ok"); toast("가구 생성 완료"); }
+async function doJoin(){ var url=gv("g_url"), key=gv("g_key"), code=gv("gj_code"), pass=gv("gj_pass"); if(!url||!key||!code){ alert("URL, key, 가구 코드를 모두 입력하세요."); return; } CFG={url:url,key:key,code:code,pass:pass}; initSb(); if(!sb){ alert("Supabase 연결 실패. URL/key를 확인하세요."); return; } var row=await cloudPull(); if(!row){ alert("해당 가구 코드를 찾을 수 없습니다. 코드와 URL을 확인하세요."); sb=null; return; } if((row.pass||"")!==(pass||"")){ alert("패스코드가 일치하지 않습니다."); sb=null; return; } cfgSave(); applying=true; S=migrate(row.data); localRev=row.rev; localStorage.setItem("moneyflow.rev",localRev); localStorage.setItem(KEY,JSON.stringify(S)); render(); ensureDot(); applying=false; subscribeRT(); gateClose(); syncDotSet("동기화됨","ok"); toast("가구 연결 완료"); }
+function openSyncSheet(){ if(!CFG||!sb){ gate(); return; } openSheet(`<h2>가구 동기화</h2>
+  <div class="field"><label>우리 가구 코드</label><input class="mono" readonly value="${esc(CFG.code)}"></div>
+  <div class="hint" style="margin-bottom:14px">이 코드와 패스코드를 배우자 폰의 '기존 가구 연결'에 입력하면 같은 화면을 봅니다.</div>
+  <button class="btn" onclick="cloudPush();closeSheet();toast('동기화 요청됨')">지금 강제 동기화</button>
+  <button class="btn ghost" onclick="closeSheet()">닫기</button>
+  <button class="btn danger" onclick="if(confirm('이 기기에서 연결을 해제할까요? 데이터는 클라우드에 남습니다.')){localStorage.removeItem(CFG_KEY);location.reload();}">이 기기 연결 해제</button>`); }
+
+/* ---- 초기화 ---- */
+ensureDot();
+if(!CFG||!CFG.url||!CFG.code){ syncDotSet("연결 필요","err"); gate(); }
+else { initSb(); if(sb){ subscribeRT(); syncDotSet("동기화 중","saving"); cloudPull().then(function(row){ if(row){ if(row.rev>=localRev){ applying=true; S=migrate(row.data); localRev=row.rev; localStorage.setItem("moneyflow.rev",localRev); localStorage.setItem(KEY,JSON.stringify(S)); applying=false; render(); ensureDot(); } syncDotSet("동기화됨","ok"); } else { cloudPush(); } }); } else { syncDotSet("연결 필요","err"); gate(); } }
+if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("./sw.js").catch(function(){}); }); }
+
+</script>
+</body>
+</html>
+

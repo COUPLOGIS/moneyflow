@@ -1,0 +1,17 @@
+{
+  "name": "머니플로우 — 우리집 현금흐름",
+  "short_name": "머니플로우",
+  "description": "월급·대출·생활비·투자를 통합 관리하고 미래 현금·순자산·부동산 차익을 예측",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0D1210",
+  "theme_color": "#0E7A63",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
